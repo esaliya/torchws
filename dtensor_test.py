@@ -5,12 +5,12 @@ import torch.multiprocessing as mp
 import os
 
 
-def test_mesh(rank, world_size, tensor, mesh, placements, tag=""):
+def test_mesh(rank, world_size, tensor, mesh, placements):
     dt = distribute_tensor(tensor, mesh, placements)
-    print(f"\n[{rank}/{world_size}]--> {dt}")
+    print(f"\n[{rank}/{world_size}]--> {dt.shape} --> {dt}")
 
 
-def test_mesh_from_local(rank, world_size, tensor, mesh, placements, tag=""):
+def test_mesh_from_local(rank, world_size, tensor, mesh, placements):
     dt = DTensor.from_local(tensor, mesh, placements)
     print(f"\n[{rank}/{world_size}]--> {dt.shape} --> {dt}")
 
@@ -25,26 +25,27 @@ def run(rank, world_size):
                                           [[4, 5],
                                            [6, 7]]])
 
-    linear_tensor = torch.tensor(range(0, 32))
-    grid_tensor = torch.tensor(range(0, 32)).reshape((4, 8))
+    linear_tensor = torch.tensor(range(0, 128))
+    grid_tensor = torch.tensor(range(0, 128)).reshape((8, 16))
 
     # Examples to create DTensor from global tensor
+    test_mesh(rank, world_size, linear_tensor, linear_mesh, [Shard(dim=0)])
 
     test_mesh(rank, world_size, grid_tensor,
-              linear_mesh, [Shard(dim=0)], "linear")
+              linear_mesh, [Shard(dim=0)])
 
     test_mesh(rank, world_size, grid_tensor,
-              grid_mesh, [Shard(dim=0), Shard(dim=1)], "grid")
+              grid_mesh, [Shard(dim=0), Shard(dim=1)])
 
     # Error case: Placements have length 1 but device mesh has 2 dimensions
     # test_mesh(rank, world_size, grid_tensor, grid_mesh, [Shard(dim=0)])
 
     # The following has an equivalent form utilizing a linear mesh, see the example following it.
     test_mesh(rank, world_size, grid_tensor,
-              grid_mesh, [Shard(dim=1), Shard(dim=1)], "grid-to-grid(dim=1, dim=1)")
+              grid_mesh, [Shard(dim=1), Shard(dim=1)])
     # This is equivalent to the above example, due to sharding over the same dimension.
     test_mesh(rank, world_size, grid_tensor,
-              linear_mesh, [Shard(dim=1)], "grid-to-linear (dim=1)")
+              linear_mesh, [Shard(dim=1)])
 
     # grid_tensor split into 3D mesh
     test_mesh(rank, world_size, grid_tensor,
@@ -62,11 +63,11 @@ def run(rank, world_size):
 
     # Same as above but with reshaped tensor to 1x32 (not necessary)
     test_mesh(rank, world_size, linear_tensor.reshape((1, linear_tensor.shape[0])),
-              grid_mesh, [Shard(dim=0), Shard(dim=0)])
+              grid_mesh, [Shard(dim=1), Shard(dim=1)])
 
     # Error case: Same as above but with reshaped tensor to 1x32
-    test_mesh(rank, world_size, linear_tensor.reshape((1, linear_tensor.shape[0])),
-              grid_mesh, [Shard(dim=0), Shard(dim=0)])
+    # test_mesh(rank, world_size, linear_tensor.reshape((1, linear_tensor.shape[0])),
+    #           grid_mesh, [Shard(dim=0), Shard(dim=0)])
 
     # Examples to create DTensor from local tensor
     local_tensor = torch.randn((3, 2), requires_grad=True)
@@ -83,11 +84,11 @@ def run(rank, world_size):
     test_mesh_from_local(rank, world_size, local_tensor,
                          linear_mesh, [Shard(dim=0)])
 
-    # DTensor operations
-    dt = distribute_tensor(linear_tensor, linear_mesh, [Shard(dim=0)])
-    print(f"\n[{rank}/{world_size}]--> {dt}")
-    sum = dt.sum()
-    print(f"\n[{rank}/{world_size}]--> {sum}")
+    # # DTensor operations
+    # dt = distribute_tensor(linear_tensor, linear_mesh, [Shard(dim=0)])
+    # print(f"\n[{rank}/{world_size}]--> {dt}")
+    # sum = dt.sum()
+    # print(f"\n[{rank}/{world_size}]--> {sum}")
 
 
 def init_process(rank, size, fn, backend='gloo'):
